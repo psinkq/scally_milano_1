@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <title>UI WALK / lukin.design</title>
+  <style>
+    @font-face {
+      font-family: 'TVES-MINI';
+      src: url('fonts/tves-mini.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'SHTRIX-MINI';
+      src: url('fonts/SHTRIX-MINI.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Mercury';
+      src: url('fonts/mercury-130.ttf') format('truetype');
+      font-weight: 300;
+    }
+    @font-face {
+      font-family: 'Mercury';
+      src: url('fonts/mercury-140.ttf') format('truetype');
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: 'Minica';
+      src: url('fonts/minica-1101-1.ttf') format('truetype');
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #080808;
+      display: flex; justify-content: center; align-items: center;
+      overflow: hidden;
+    }
+    #poster {
+      position: relative;
+      width: 390px;
+      height: 844px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    @media (max-height: 860px) {
+      #poster {
+        height: 100vh;
+        width: calc(100vh * 390 / 844);
+      }
+    }
+    video {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+    #sketch {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+    #hint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.25);
+      font-size: 9px;
+      font-family: 'Minica', monospace, sans-serif;
+      letter-spacing: 3px;
+      z-index: 2;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="poster">
+    <video autoplay loop muted playsinline>
+      <source src="vid.mp4" type="video/mp4">
+    </video>
+    <div id="sketch"></div>
+    <div id="hint">CLICK TO PAUSE</div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+  new p5(p => {
+
+    // ── CONSTANTS ──────────────────────────────────────────────────────────
+    const W = 390, H = 844;
+    const PERSP = 680;
+    const GLYPHS = '░▒▓█▄▀■□▪◆◇○●◉⌂⊕⊗⊙⚡⚠⚒⚙◣◢▶◀▲▼';
+
+      const NEON = [
+        [242, 0, 255],   // magenta
+        [0, 255, 234],   // cyan
+        [17, 255, 0],    // lime
+        [18, 7, 169],    // deep blue
+        [255, 228, 0],   // yellow
+      ];
+
+    // 8-bit acidic pairs {bg, fg} — opaque, high contrast
+    const LABEL_PALETTES = [
+      {bg:[0,0,0],       fg:[98,221,205]},      // black / blue
+      {bg:[0,0,0],       fg:[38,183,212]},     // black / cyan
+      {bg:[0,0,0],       fg:[176,91,183]},     // black / magenta
+      {bg:[0,0,0],       fg:[203,203,129]},     // black / yellow
+      {bg:[0,0,170],     fg:[255,255,85]},    // CGA blue / bright yellow
+      {bg:[96,43,61],     fg:[255,255,255]},   // deep red / white
+      {bg:[176,91,183],   fg:[0,0,0]},         // magenta / black
+      {bg:[38,183,212],   fg:[0,0,0]},         // cyan / black
+      {bg:[203,203,129],   fg:[0,0,0]},         // yellow / black
+      {bg:[105,187,100],    fg:[0,0,0]},         // lime / black
+      {bg:[85,0,170],    fg:[255,255,0]},     // purple / yellow
+      {bg:[255,85,0],    fg:[0,0,0]},         // orange / black
+    ];
+
+    // lyrics:
+const LABELS = [
+  'Вау, вау, вау, йупи-йо, йупи-йей, ***',
+  'Предъявите паспорт, зубы этой суки чаще видят ***',
+  'Бро торчит на кухне три часа, но не готовит пасту',
+  'Перед тем, как меряться со мной ***, посмотри на мой',
+  'Если хочешь тоже в игру — тебе нужно задротить всё',
+  'А ты настолько броук, будто в твоей стране безработица',
+  'Включи музыку погромче, двигай телом',
+  'Шоты, алкоголь, текила, детка, я куплю это',
+  'Шорты от Vetements, ещё Amiri — я ношу это',
+  'Я ощущаю себя боссом',
+  'Дар красиво говорить был мне с неба послан',
+  'Хейтер видит, что я поднимаюсь — ***',
+  'Проснулся, сразу дал два *** — и я снова сонный',
+  'Если ты мой опп, то советую те носить броник',
+  'Мой язык острый, как будто я пихал его в точилку',
+  'Мы самые старые здесь, как Оззи Осборн',
+  'Я купил бабушке в аптеке таблетки',
+  'У меня за зубами лежит грязь, и я не про кариес',
+  'На телефоне обманываю людей день и ночь',
+  'Дайте кто-нибудь счётчик, не могу посчитать банкноты',
+  'Парень, у тебя пару методов, а у меня методов книга',
+  'Ты не рэпуешь то, чем жил',
+  'У меня bar\'ы как в центрах, я в них утону',
+  'Я сплю на этих скучных челов',
+  'Если бы я был другим, *** бы я поднял тесто'
+];
+
+
+    // ── STATE ──────────────────────────────────────────────────────────────
+    let vpX = W / 2, vpY = H / 2;
+    let targetVpX = vpX, targetVpY = vpY;
+    let paused = false;
+    let speed = 1.0;
+    let wins = [];
+    let glitchFlash = 0;
+
+    // ── PROJECTION ─────────────────────────────────────────────────────────
+    function project(ox, oy, z) {
+      const z2 = Math.max(z, 1);
+      const s = PERSP / (PERSP + z2);
+      return { x: vpX + ox * s, y: vpY + oy * s, s };
+    }
+
+    // ── BASE WINDOW ────────────────────────────────────────────────────────
+    class Win {
+      constructor(zInit) {
+        this._init(zInit != null ? zInit : p.random(1600, 2400));
+      }
+
+      _init(z) {
+        this.z      = z;
+        this.ox = p.random() > 0.5 ? p.random(-W * 1.5, -W * 0.3) : p.random(W * 0.3, W * 1.5);
+        this.oy = p.random(-H, H);
+        this.spd    = p.random(3.2, 8.5);
+        this.bw     = p.random(200, 310);
+        this.bh     = p.random(130, 240);
+        this.accent = p.random(NEON);
+        this.palette= p.random(LABEL_PALETTES);
+        this.seed   = p.floor(p.random(99999));
+        this.label  = p.random(LABELS);
+        this.phase  = p.random(1000);
+        this.tilt   = p.random(-0.028, 0.028);
+      }
+
+      get alpha() {
+        if (this.z > 1800) return p.map(this.z, 2200, 1700, 0, 255);
+        if (this.z < 140)  return p.map(this.z, 140, 0, 255, 0);
+        return 255;
+      }
+
+      update() {
+        if (!paused) {
+          this.z -= this.spd * speed;
+          this.phase += 0.045;
+        }
+        if (this.z < -70) this._init(p.random(1600, 2400));
+      }
+
+      draw() {
+        const a = p.constrain(this.alpha, 0, 255);
+        if (a < 3) return;
+        const pr = project(this.ox, this.oy, this.z);
+        if (pr.s < 0.04 || pr.s > 5.5) return;
+
+        p.push();
+        p.translate(pr.x, pr.y);
+        p.scale(pr.s);
+        p.rotate(this.tilt * p.map(pr.s, 0.1, 1.5, 1.4, 0));
+        this.render(a);
+        p.pop();
+      }
+
+      render(a) { /* override */ }
+
+      // ── shared helpers ─────────────────────────────────────────────────
+      _frame(w, h, title, a, dark = false) {
+        const bg  = dark ? [16, 16, 22, a * 0.96] : [246, 246, 248, a * 0.92];
+        const bdr = dark ? [70, 70, 90, a * 0.5]  : [190, 190, 194, a * 0.55];
+
+        p.drawingContext.shadowColor = `rgba(0,0,0,${p.map(a, 0, 255, 0, 0.35)})`;
+        p.drawingContext.shadowBlur  = 22;
+        p.fill(...bg);
+        p.stroke(...bdr);
+        p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 8);
+        p.drawingContext.shadowBlur = 0;
+
+        const tbH = 30;
+        const tbBg = dark ? [26, 26, 36, a] : [238, 238, 242, a];
+        p.fill(...tbBg);
+        p.noStroke();
+        p.rect(-w/2, -h/2, w, tbH, 8, 8, 0, 0);
+
+        // Win11 title (left-aligned)
+        const fg = dark ? [200, 200, 200, a * 0.82] : [38, 38, 38, a * 0.82];
+        p.fill(...fg);
+        p.noStroke();
+        p.textFont('Segoe UI, system-ui, Arial');
+        p.textSize(11);
+        p.textAlign(p.LEFT, p.CENTER);
+        p.text(title, -w/2 + 12, -h/2 + tbH/2);
+
+        // Win11 window controls — right side
+        const btnY = -h/2 + tbH/2;
+        // Minimize —
+        p.fill(...fg);
+        p.noStroke();
+        p.textSize(14);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('─', w/2 - 76, btnY + 2);
+        // Maximize □
+        p.noFill();
+        p.stroke(...fg);
+        p.strokeWeight(1);
+        p.rect(w/2 - 61, btnY - 5, 10, 10);
+        // Close ✕ (red bg)
+        p.noStroke();
+        p.fill(196, 43, 28, a * 0.9);
+        p.rect(w/2 - 36, -h/2, 36, tbH, 0, 8, 0, 0);
+        p.fill(255, 255, 255, a * 0.92);
+        p.textSize(11);
+        p.text('✕', w/2 - 18, btnY);
+
+        // divider
+        const div = dark ? `rgba(255,255,255,${a/255*0.07})` : `rgba(0,0,0,${a/255*0.09})`;
+        p.drawingContext.strokeStyle = div;
+        p.drawingContext.lineWidth = 1;
+        p.drawingContext.beginPath();
+        p.drawingContext.moveTo(-w/2, -h/2 + tbH);
+        p.drawingContext.lineTo( w/2, -h/2 + tbH);
+        p.drawingContext.stroke();
+
+        return tbH;
+      }
+
+      _glitch(str) {
+        let out = '';
+        for (let i = 0; i < str.length; i++) {
+          const n = p.noise(i * 0.38, this.phase * 0.7);
+          if (n > 0.87 && p.frameCount % 5 < 2) {
+            out += GLYPHS[p.floor(p.noise(i * 2, this.phase) * GLYPHS.length)];
+          } else {
+            out += str[i];
+          }
+        }
+        return out;
+      }
+
+      // Split label into censored / uncensored segments
+      _parseSegs(str) {
+        const segs = [], re = /\{\{(.+?)\}\}/g;
+        let last = 0, m;
+        while ((m = re.exec(str)) !== null) {
+          if (m.index > last) segs.push({text: str.slice(last, m.index), censored: false});
+          segs.push({text: m[1], censored: true});
+          last = m.index + m[0].length;
+        }
+        if (last < str.length) segs.push({text: str.slice(last), censored: false});
+        return segs;
+      }
+
+      // Depth-aware typed glitch: far away = all noise chars, close = clean text typed in
+      _typedGlitch(str) {
+        // progress 0→1 as element travels from z=1400 to z=80
+        const progress  = p.constrain(p.map(this.z, 1400, 80, 0, 1), 0, 1);
+        // glitchRate 1→0 as element approaches (far = full noise, close = clean)
+        const glitchRate = p.constrain(p.map(this.z, 900, 120, 1, 0), 0, 1);
+        const revealed  = Math.ceil(progress * str.length);
+
+        let out = '';
+        for (let i = 0; i < str.length; i++) {
+          if (i >= revealed) {
+            // Not yet typed → show animated noise glyph
+            out += GLYPHS[p.floor(p.noise(i * 1.7 + this.seed * 0.01, this.phase * 1.4) * GLYPHS.length)];
+          } else {
+            // Typed but may still be corrupted
+            const n = p.noise(i * 0.38 + this.seed * 0.01, this.phase * 0.7);
+            if (n < glitchRate * 0.28 || (p.frameCount % 5 < 2 && n > 0.83)) {
+              out += GLYPHS[p.floor(p.noise(i * 2 + this.seed, this.phase) * GLYPHS.length)];
+            } else {
+              out += str[i];
+            }
+          }
+        }
+        return out;
+      }
+    }
+
+    // ── START MENU ─────────────────────────────────────────────────────────
+    class StartMenuWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+
+        // frosted glass bg
+        p.drawingContext.shadowColor = `rgba(0,0,0,${a/255*0.28})`;
+        p.drawingContext.shadowBlur = 26;
+        p.fill(243, 243, 245, a * 0.91);
+        p.stroke(160, 160, 165, a * 0.4);
+        p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 9);
+        p.drawingContext.shadowBlur = 0;
+
+        // search box
+        p.fill(255, 255, 255, a * 0.92);
+        p.stroke(0, 0, 0, a * 0.12);
+        p.strokeWeight(1);
+        p.rect(-w/2 + 14, -h/2 + 14, w - 28, 28, 4);
+        p.fill(0, 0, 0, a * 0.42);
+        p.noStroke();
+        p.textFont('system-ui, Segoe UI');
+        p.textSize(9.5);
+        p.textAlign(p.LEFT, p.CENTER);
+        p.text('⌕  Type here to search', -w/2 + 24, -h/2 + 28);
+
+        // Pinned header
+        p.fill(0, 0, 0, a * 0.85);
+        p.textSize(10);
+        p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT, p.BASELINE);
+        p.text('Pinned', -w/2 + 14, -h/2 + 57);
+
+        const allAppsX = w/2 - 44;
+        p.fill(255, 255, 255, a * 0.7);
+        p.stroke(0, 0, 0, a * 0.1);
+        p.strokeWeight(1);
+        p.rect(allAppsX - 20, -h/2 + 46, 40, 16, 3);
+        p.fill(0, 0, 0, a * 0.7);
+        p.noStroke();
+        p.textSize(7);
+        p.textStyle(p.NORMAL);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('All apps', allAppsX, -h/2 + 54);
+
+        // App grid 4×2
+        const appData = [
+          [[0,103,192], 'Edge'],   [[37,99,160],  'Word'],
+          [[33,115,70],  'Excel'], [[0,120,215],   'Mail'],
+          [[0,174,241],  'Store'], [[255,152,0],   'Photos'],
+          [[255,213,0],  'Notes'], [[76,76,76],    'Settings'],
+        ];
+        const cols = 4;
+        const cw = (w - 28) / cols, ch = 52;
+        appData.forEach(([[r,g,b], name], i) => {
+          const col = i % cols, row = p.floor(i / cols);
+          const cx = -w/2 + 14 + cw * col + cw/2;
+          const cy = -h/2 + 64 + ch * row;
+          p.fill(r, g, b, a * 0.86);
+          p.noStroke();
+          p.rect(cx - 13, cy, 26, 26, 4);
+          // icon symbol
+          p.fill(255, 255, 255, a * 0.8);
+          p.textSize(12);
+          p.textAlign(p.CENTER, p.CENTER);
+          p.text(name[0], cx, cy + 13);
+          p.fill(0, 0, 0, a * 0.6);
+          p.textSize(7.5);
+          p.textAlign(p.CENTER, p.TOP);
+          p.text(name, cx, cy + 30);
+        });
+
+        if (h > 190) {
+          // divider
+          p.stroke(0, 0, 0, a * 0.09);
+          p.strokeWeight(1);
+          const divY = -h/2 + 64 + 2*ch + 10;
+          p.line(-w/2 + 14, divY, w/2 - 14, divY);
+
+          p.fill(0, 0, 0, a * 0.85);
+          p.noStroke();
+          p.textSize(10);
+          p.textStyle(p.BOLD);
+          p.textAlign(p.LEFT, p.BASELINE);
+          p.text('Recommended', -w/2 + 14, divY + 20);
+          p.textStyle(p.NORMAL);
+
+          [['Rental Agreement', '17m ago'], ['Logo Ideas', '12h ago']].forEach(([name, time], i) => {
+            const fy = divY + 26 + i * 28;
+            p.fill(0, 80, 200, a * 0.76);
+            p.noStroke();
+            p.rect(-w/2 + 14, fy, 20, 20, 2);
+            p.fill(0, 0, 0, a * 0.75);
+            p.textSize(9);
+            p.textAlign(p.LEFT, p.CENTER);
+            p.text(name, -w/2 + 40, fy + 7);
+            p.fill(0, 0, 0, a * 0.42);
+            p.textSize(8);
+            p.text(time, -w/2 + 40, fy + 17);
+          });
+        }
+
+        // footer divider
+        p.stroke(0, 0, 0, a * 0.08);
+        p.strokeWeight(1);
+        p.line(-w/2, h/2 - 36, w/2, h/2 - 36);
+        p.fill(0, 0, 0, a * 0.6);
+        p.noStroke();
+        p.textSize(9.5);
+        p.textAlign(p.LEFT, p.CENTER);
+        p.text('● Name', -w/2 + 14, h/2 - 18);
+        p.textAlign(p.RIGHT, p.CENTER);
+        p.text('⏻   ⚙', w/2 - 14, h/2 - 18);
+      }
+    }
+
+    // ── EDGE BROWSER ───────────────────────────────────────────────────────
+    class BrowserWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+
+        p.drawingContext.shadowColor = `rgba(0,0,0,${a/255*0.3})`;
+        p.drawingContext.shadowBlur = 20;
+        p.fill(250, 250, 252, a * 0.95);
+        p.stroke(200, 200, 205, a * 0.5);
+        p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 7);
+        p.drawingContext.shadowBlur = 0;
+
+        // tab strip
+        p.fill(242, 242, 245, a);
+        p.noStroke();
+        p.rect(-w/2, -h/2, w, 28, 7, 7, 0, 0);
+
+        // active tab
+        p.fill(255, 255, 255, a * 0.92);
+        p.stroke(210, 210, 215, a * 0.5);
+        p.strokeWeight(1);
+        p.rect(-w/2 + 8, -h/2 + 4, 112, 24, 5, 5, 0, 0);
+        p.fill(20, 20, 20, a * 0.8);
+        p.noStroke();
+        p.textFont('system-ui, Segoe UI');
+        p.textSize(8.5);
+        p.textAlign(p.LEFT, p.CENTER);
+        p.text('fedotova', -w/2 + 14, -h/2 + 16);
+
+        // close btn
+        p.fill(196, 43, 28, a * 0.88);
+        p.noStroke();
+        p.rect(w/2 - 36, -h/2, 36, 28, 0, 7, 0, 0);
+        p.fill(255, 255, 255, a * 0.85);
+        p.textSize(11);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('✕', w/2 - 18, -h/2 + 14);
+
+        // toolbar
+        const ty = -h/2 + 28;
+        p.fill(248, 248, 251, a);
+        p.stroke(215, 215, 218, a * 0.4);
+        p.strokeWeight(1);
+        p.rect(-w/2, ty, w, 34);
+
+        // nav buttons
+        p.fill(80, 80, 90, a * 0.75);
+        p.noStroke();
+        p.textSize(13);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('←', -w/2 + 16, ty + 17);
+        p.text('→', -w/2 + 32, ty + 17);
+        p.fill(80, 80, 90, a * 0.45);
+        p.text('→', -w/2 + 32, ty + 17);
+        p.fill(80, 80, 90, a * 0.75);
+        p.text('↻', -w/2 + 50, ty + 17);
+
+        // address bar
+        p.fill(255, 255, 255, a);
+        p.stroke(0, 90, 215, a * 0.75);
+        p.strokeWeight(1.5);
+        p.rect(-w/2 + 66, ty + 6, w - 116, 22, 11);
+        p.fill(20, 70, 175, a * 0.88);
+        p.noStroke();
+        p.textSize(9);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('🔒 brixagency.com', -w/2 + 66 + (w - 116)/2, ty + 17);
+
+        // extensions
+        p.fill(90, 90, 100, a * 0.6);
+        p.textSize(13);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('…', w/2 - 16, ty + 17);
+
+        // page content
+        const py = ty + 34;
+        const ph = h - py - h/2;
+        p.fill(255, 255, 255, a * 0.97);
+        p.noStroke();
+        p.rect(-w/2, py, w, ph, 0, 0, 7, 7);
+
+        // fake webpage
+        p.fill(18, 18, 18, a * 0.9);
+        p.textFont('Mercury, Georgia, serif');
+        p.textSize(14);
+        p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT, p.TOP);
+        p.text('BRIX Agency', -w/2 + 14, py + 10);
+        p.textStyle(p.NORMAL);
+        p.textFont('system-ui');
+        p.fill(90, 90, 90, a * 0.65);
+        p.textSize(8);
+        p.text('Digital Design Studio · 2024', -w/2 + 14, py + 28);
+
+        // content bars
+        [[0.95, 42], [0.65, 54], [0.8, 66]].forEach(([pct, off]) => {
+          p.fill(220, 220, 226, a * 0.4);
+          p.rect(-w/2 + 14, py + off, (w - 28) * pct, 7, 2);
+        });
+
+        // image placeholder
+        p.fill(200, 200, 218, a * 0.28);
+        p.rect(-w/2 + 14, py + 80, w - 28, ph - 90, 4);
+        p.fill(180, 180, 200, a * 0.35);
+        p.textSize(22);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('⊞', 0, py + 80 + (ph - 90)/2);
+      }
+    }
+
+    // ── NEON GLITCH LABEL (highlighter) ───────────────────────────────────
+    class GlitchLabelWin extends Win {
+      _drawHighlightLine(segs, x0, y0, fSize, lineH, bgCol, fgCol, revealedTotal, charOffset, a) {
+        p.textSize(fSize);
+        p.textAlign(p.LEFT, p.CENTER);
+        let xc = x0, seen = charOffset;
+        for (const seg of segs) {
+          if (!seg.censored) {
+            const vis = p.constrain(revealedTotal - seen, 0, seg.text.length);
+            const txt = seg.text.substring(0, vis);
+            // glitch visible chars
+            const gr = p.constrain(p.map(this.z, 600, 80, 1, 0), 0, 1);
+            let disp = '';
+            for (let i = 0; i < txt.length; i++) {
+              const n = p.noise(i * 0.4 + this.seed * 0.01, this.phase * 0.8);
+              disp += (n < gr * 0.22 || (p.frameCount % 6 < 2 && n > 0.84))
+                ? GLYPHS[p.floor(p.noise(i*2+this.seed, this.phase)*GLYPHS.length)]
+                : txt[i];
+            }
+            const vW = p.textWidth(txt || 'x') * (txt.length ? 1 : 0);
+            // opaque 8-bit expanding highlight rect
+            if (vW > 0) {
+              p.noStroke(); p.fill(...bgCol, a);
+              p.rect(xc - 1, y0 - lineH/2, vW + 3, lineH);
+            }
+            p.fill(...fgCol, a); p.noStroke();
+            p.text(disp, xc, y0);
+            xc += p.textWidth(seg.text);
+          } else {
+            // censored — solid government redaction block
+            const cW = p.textWidth('W') * seg.text.length * 0.88 + 8;
+            if (revealedTotal > seen) {
+              p.noStroke(); p.fill(8, 8, 8, a * 0.96);
+              p.rect(xc - 1, y0 - lineH/2, cW + 2, lineH);
+              // static noise flash inside block
+              if (p.noise(this.seed + 31, this.phase * 3.5) > 0.7) {
+                p.fill(255, 255, 255, a * 0.11);
+                p.textSize(fSize * 0.55);
+                const st = [0,1,2,3].map(() => GLYPHS[p.floor(p.random()*GLYPHS.length)]).join('');
+                p.text(st, xc + 3, y0);
+                p.textSize(fSize);
+              }
+              // РКН stamp
+              p.fill(210, 20, 20, a * 0.88);
+              p.textSize(6); p.textAlign(p.LEFT, p.TOP);
+              p.text('РКН⊟', xc + 1, y0 - lineH/2 + 1);
+              p.textSize(fSize); p.textAlign(p.LEFT, p.CENTER);
+            }
+            xc += cW + p.textWidth(' ');
+          }
+          seen += seg.text.length;
+        }
+      }
+
+      render(a) {
+        const {bg, fg} = this.palette;
+        const w = this.bw * 1.1 + 20;
+        const fSize = 22, lineH = fSize + 8;
+
+        p.noStroke();
+        p.textFont('TVES-MINI, monospace');
+        p.textSize(fSize);
+
+        const progress = p.constrain(p.map(this.z, 1400, 80, 0, 1), 0, 1);
+        const segs1 = this._parseSegs(this.label);
+        const rawLen1 = segs1.reduce((s, g) => s + g.text.length, 0);
+        const revealed1 = Math.ceil(progress * rawLen1);
+
+        this._drawHighlightLine(segs1, -w/2 + 12, 0, fSize, lineH, bg, fg, revealed1, 0, a);
+
+        // second line — slightly staggered, uses palette with shifted fg/bg for contrast
+        const label2 = LABELS[(LABELS.indexOf(this.label) + 4) % LABELS.length];
+        const segs2 = this._parseSegs(label2);
+        const rawLen2 = segs2.reduce((s, g) => s + g.text.length, 0);
+        const prog2 = p.constrain(p.map(this.z, 1200, 60, 0, 1), 0, 1);
+        const revealed2 = Math.ceil(prog2 * rawLen2);
+
+        // swap palette for second line so it contrasts
+        const bg2 = fg, fg2 = bg;
+        p.textFont('SHTRIX-MINI, monospace');
+        this._drawHighlightLine(segs2, -w/2 + 12, lineH + 4, 17, 17 + 8, bg2, fg2, revealed2, 0, a * 0.85);
+
+        p.textFont('system-ui');
+      }
+    }
+
+    // ── SHTRIX POSTER LABEL ────────────────────────────────────────────────
+    class ShtrixLabelWin extends Win {
+      render(a) {
+        const {bg, fg} = this.palette;
+        const [r, g, b] = bg;
+        const onColor = fg;
+
+        const w = this.bw * 1.15;
+        const fSize = 24, lineH = fSize + 8;
+
+        p.noStroke();
+        p.textFont('SHTRIX-MINI, monospace');
+        p.textSize(fSize);
+
+        const progress = p.constrain(p.map(this.z, 1400, 80, 0, 1), 0, 1);
+        const segs = this._parseSegs(this.label);
+        const rawLen = segs.reduce((s, g) => s + g.text.length, 0);
+        const revealed = Math.ceil(progress * rawLen);
+
+        // Reuse GlitchLabelWin's helper by delegating
+        let xc = -w/2 + 12, seen = 0;
+        p.textAlign(p.LEFT, p.CENTER);
+        for (const seg of segs) {
+          if (!seg.censored) {
+            const vis = p.constrain(revealed - seen, 0, seg.text.length);
+            const txt = seg.text.substring(0, vis);
+            const gr = p.constrain(p.map(this.z, 600, 80, 1, 0), 0, 1);
+            let disp = '';
+            for (let i = 0; i < txt.length; i++) {
+              const n = p.noise(i * 0.4 + this.seed * 0.01, this.phase * 0.8);
+              disp += (n < gr * 0.22 || (p.frameCount % 6 < 2 && n > 0.84))
+                ? GLYPHS[p.floor(p.noise(i*2+this.seed, this.phase)*GLYPHS.length)]
+                : txt[i];
+            }
+            const vW = txt.length ? p.textWidth(txt) : 0;
+            if (vW > 0) { p.noStroke(); p.fill(r, g, b, a); p.rect(xc-1, -lineH/2, vW+3, lineH); }
+            p.fill(...onColor, a); p.noStroke(); p.text(disp, xc, 0);
+            xc += p.textWidth(seg.text);
+          } else {
+            const cW = p.textWidth('W') * seg.text.length * 0.88 + 8;
+            if (revealed > seen) {
+              p.noStroke(); p.fill(8,8,8,a*0.96); p.rect(xc-1,-lineH/2,cW+2,lineH);
+              if (p.noise(this.seed+99, this.phase*3.5) > 0.7) {
+                p.fill(255,255,255,a*0.1); p.textSize(fSize*0.55);
+                p.text([0,1,2,3].map(()=>GLYPHS[p.floor(p.random()*GLYPHS.length)]).join(''), xc+3, 0);
+                p.textSize(fSize);
+              }
+              p.fill(210,20,20,a*0.85); p.textSize(6); p.textAlign(p.LEFT,p.TOP);
+              p.text('РКН⊟', xc+1, -lineH/2+1);
+              p.textSize(fSize); p.textAlign(p.LEFT,p.CENTER);
+            }
+            xc += cW + p.textWidth(' ');
+          }
+          seen += seg.text.length;
+        }
+        p.textFont('system-ui');
+      }
+    }
+
+    // ── NOTIFICATION TOAST ─────────────────────────────────────────────────
+    class NotifWin extends Win {
+      render(a) {
+        const w = 225, h = 76;
+        const [r,g,b] = this.accent;
+
+        p.drawingContext.shadowColor = `rgba(0,0,0,0.28)`;
+        p.drawingContext.shadowBlur = 16;
+        p.fill(248, 248, 250, a * 0.97);
+        p.stroke(210, 210, 215, a * 0.5);
+        p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 10);
+        p.drawingContext.shadowBlur = 0;
+
+        p.fill(r, g, b, a * 0.9);
+        p.noStroke();
+        p.rect(-w/2 + 10, -h/2 + 10, 28, 28, 4);
+
+        p.fill(160, 160, 165, a * 0.5);
+        p.noStroke();
+        p.textFont('system-ui');
+        p.textSize(13);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('×', w/2 - 13, -h/2 + 14);
+
+        p.fill(10, 10, 14, a * 0.9);
+        p.textSize(11);
+        p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT, p.TOP);
+        p.text('Life Security', -w/2 + 48, -h/2 + 10);
+        p.textStyle(p.NORMAL);
+        p.fill(60, 60, 65, a * 0.75);
+        p.textSize(9);
+        p.text('Your life is at risk ', -w/2 + 48, -h/2 + 26);
+        p.text('Action required immediately', -w/2 + 48, -h/2 + 38);
+
+        p.fill(r, g, b, a * 0.88);
+        p.noStroke();
+        p.rect(-w/2 + 48, -h/2 + 52, 64, 18, 4);
+        p.fill(255, 255, 255, a * 0.92);
+        p.textSize(8.5);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('View now', -w/2 + 80, -h/2 + 61);
+      }
+    }
+
+    // ── FILE EXPLORER ──────────────────────────────────────────────────────
+    class FileExplorerWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+        const tbH = this._frame(w, h, 'File Explorer', a);
+        const sideW = w * 0.3;
+
+        // content bg
+        p.fill(255, 255, 255, a * 0.97);
+        p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, h - tbH, 0, 0, 8, 8);
+
+        // sidebar
+        p.fill(245, 245, 248, a * 0.95);
+        p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, sideW, h - tbH, 0, 0, 0, 8);
+        p.stroke(0, 0, 0, a * 0.05);
+        p.strokeWeight(1);
+        p.line(-w/2 + sideW, -h/2 + tbH, -w/2 + sideW, h/2);
+
+        const folders = ['⌂ Desktop','↓ Downloads','≡ Documents','⊞ Pictures','♫ Music'];
+        folders.forEach((f, i) => {
+          if (i === 1) {
+            p.fill(...this.accent, a * 0.14);
+            p.noStroke();
+            p.rect(-w/2, -h/2 + tbH + i * 22, sideW, 22);
+          }
+          p.fill(0, 0, 0, a * (i === 1 ? 0.88 : 0.6));
+          p.noStroke();
+          p.textFont('system-ui, Segoe UI');
+          p.textSize(8.5);
+          p.textAlign(p.LEFT, p.CENTER);
+          p.text(f, -w/2 + 8, -h/2 + tbH + i * 22 + 11);
+        });
+
+        // file grid
+        const gx   = -w/2 + sideW + 6;
+        const gw   = w - sideW - 12;
+        const cols  = 3;
+        const fcw   = gw / cols, fch = 54;
+        const files = ['img_001.jpg','contract.docx','video.mp4','script.js','assets.zip'];
+        files.forEach((file, i) => {
+          const col = i % cols, row = p.floor(i / cols);
+          const fx  = gx + col * fcw;
+          const fy  = -h/2 + tbH + 6 + row * fch;
+          p.fill(248, 248, 252, a * 0.92);
+          p.stroke(218, 218, 226, a * 0.38);
+          p.strokeWeight(1);
+          p.rect(fx, fy, fcw - 4, fch - 4, 4);
+          p.fill(0, 90, 200, a * 0.78);
+          p.noStroke();
+          p.rect(fx + 6, fy + 6, 18, 22, 2);
+          p.fill(0, 0, 0, a * 0.6);
+          p.textSize(6.5);
+          p.textAlign(p.CENTER, p.BASELINE);
+          p.text(file, fx + fcw/2 - 2, fy + fch - 5);
+        });
+      }
+    }
+
+    // ── SETTINGS ──────────────────────────────────────────────────────────
+    class SettingsWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+        const tbH = this._frame(w, h, 'Settings', a);
+        const sideW = w * 0.33;
+        const [r,g,b] = this.accent;
+
+        p.fill(244, 244, 247, a * 0.95);
+        p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, sideW, h - tbH, 0, 0, 0, 8);
+        p.stroke(0, 0, 0, a * 0.05);
+        p.strokeWeight(1);
+        p.line(-w/2 + sideW, -h/2 + tbH, -w/2 + sideW, h/2);
+
+        const sections = ['⊞ System','⚡ Bluetooth','⊟ Network','◈ Personalize','▷ Apps','◉ Privacy'];
+        sections.forEach((s, i) => {
+          if (i === 0) {
+            p.fill(r, g, b, a * 0.15);
+            p.noStroke();
+            p.rect(-w/2, -h/2 + tbH + i * 22, sideW, 22);
+          }
+          p.fill(0, 0, 0, a * (i === 0 ? 0.9 : 0.62));
+          p.noStroke();
+          p.textFont('system-ui, Segoe UI');
+          p.textSize(8.5);
+          p.textAlign(p.LEFT, p.CENTER);
+          p.text(s, -w/2 + 8, -h/2 + tbH + i * 22 + 11);
+        });
+
+        // content area
+        const cx = -w/2 + sideW + 12, cw = w - sideW - 20;
+        p.fill(255, 255, 255, a * 0.97);
+        p.noStroke();
+        p.rect(-w/2 + sideW, -h/2 + tbH, w - sideW, h - tbH, 0, 0, 8, 8);
+
+        p.fill(0, 0, 0, a * 0.88);
+        p.textFont('Mercury, Georgia, serif');
+        p.textSize(13);
+        p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT, p.TOP);
+        p.text('System', cx, -h/2 + tbH + 8);
+        p.textStyle(p.NORMAL);
+        p.textFont('system-ui');
+
+        const toggles = [
+          {label: 'Dark Mode', on: true},
+          {label: 'Notifications', on: true},
+          {label: 'Location', on: false},
+          {label: 'Bluetooth', on: true},
+        ];
+        toggles.forEach((t, i) => {
+          const sy = -h/2 + tbH + 30 + i * 28;
+          p.fill(0, 0, 0, a * 0.78);
+          p.noStroke();
+          p.textSize(9.5);
+          p.textAlign(p.LEFT, p.CENTER);
+          p.text(t.label, cx, sy + 10);
+
+          const tx = cx + cw - 32;
+          p.fill(t.on ? [r,g,b,a*0.9] : [180,180,185,a*0.7]);
+          p.noStroke();
+          p.rect(tx, sy + 4, 28, 14, 7);
+          p.fill(255, 255, 255, a);
+          p.noStroke();
+          p.circle(tx + (t.on ? 21 : 7), sy + 11, 11);
+
+          p.stroke(0, 0, 0, a * 0.07);
+          p.strokeWeight(1);
+          p.line(cx, sy + 24, cx + cw, sy + 24);
+        });
+      }
+    }
+
+    // ── TERMINAL ──────────────────────────────────────────────────────────
+    class TerminalWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+        const tbH = this._frame(w, h, 'Windows PowerShell', a, true);
+
+        p.fill(10, 10, 16, a * 0.97);
+        p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, h - tbH, 0, 0, 8, 8);
+
+        const lines = [
+          {t: 'Microsoft Windows [Version 10.0.22621]', c: [180,180,185]},
+          {t: '(c) Microsoft Corporation.', c: [100,100,110]},
+          {t: '', c: [200,200,200]},
+          {t: 'PS C:\\Users\\User> ls', c: [200,200,205]},
+          {t: '    d----  Documents', c: [86,182,194]},
+          {t: '    d----  Downloads', c: [86,182,194]},
+          {t: '    d----  Pictures', c: [86,182,194]},
+          {t: '    -a---  error_log.txt', c: [200,200,200]},
+          {t: '', c: [200,200,200]},
+          {t: 'PS C:\\Users\\User> _', c: [17,255,0]},
+        ];
+
+        lines.forEach((line, i) => {
+          let txt = line.t;
+          // glitch some lines
+          if (p.noise(i * 0.32, this.phase * 0.6) > 0.91 && p.frameCount % 6 < 2) {
+            txt = txt.split('').map(ch =>
+              p.random() > 0.85 ? GLYPHS[p.floor(p.noise(i*3, this.phase) * GLYPHS.length)] : ch
+            ).join('');
+          }
+          p.fill(...line.c, a * 0.95);
+          p.noStroke();
+          p.textFont('Courier New, Lucida Console, monospace');
+          p.textSize(8.5);
+          p.textAlign(p.LEFT, p.TOP);
+          p.text(txt, -w/2 + 8, -h/2 + tbH + 5 + i * 13);
+        });
+        p.textFont('system-ui');
+      }
+    }
+
+    // ── CONTEXT MENU ──────────────────────────────────────────────────────
+    class ContextMenuWin extends Win {
+      render(a) {
+        const w = 180, h = 195;
+        const [r,g,b] = this.accent;
+
+        p.drawingContext.shadowColor = `rgba(0,0,0,0.25)`;
+        p.drawingContext.shadowBlur = 14;
+        p.fill(250, 250, 253, a * 0.97);
+        p.stroke(210, 210, 216, a * 0.55);
+        p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 8);
+        p.drawingContext.shadowBlur = 0;
+
+        const items = [
+          {icon:'⊞', label:'Open', short:''},
+          {icon:'⊟', label:'Copy', short:'Ctrl+C'},
+          {icon:'✂', label:'Cut',  short:'Ctrl+X'},
+          {icon:'⊡', label:'Paste',short:'Ctrl+V'},
+          null,
+          {icon:'⊗', label:'Delete', short:'Del'},
+          {icon:'⊘', label:'Rename', short:'F2'},
+          {icon:'ⓘ', label:'Properties', short:''},
+        ];
+
+        let yo = 8;
+        items.forEach((item, i) => {
+          if (!item) {
+            p.stroke(0, 0, 0, a * 0.1);
+            p.strokeWeight(1);
+            p.line(-w/2 + 8, -h/2 + yo + 5, w/2 - 8, -h/2 + yo + 5);
+            yo += 12;
+            return;
+          }
+          if (i === 0) {
+            p.fill(r, g, b, a * 0.13);
+            p.noStroke();
+            p.rect(-w/2 + 4, -h/2 + yo, w - 8, 22, 4);
+          }
+          p.fill(10, 10, 14, a * 0.85);
+          p.noStroke();
+          p.textFont('system-ui, Segoe UI');
+          p.textSize(13);
+          p.textAlign(p.LEFT, p.CENTER);
+          p.text(item.icon, -w/2 + 10, -h/2 + yo + 11);
+          p.textSize(10);
+          p.text(item.label, -w/2 + 32, -h/2 + yo + 11);
+          if (item.short) {
+            p.fill(120, 120, 128, a * 0.6);
+            p.textSize(8);
+            p.textAlign(p.RIGHT, p.CENTER);
+            p.text(item.short, w/2 - 8, -h/2 + yo + 11);
+          }
+          yo += 22;
+        });
+      }
+    }
+
+    // ── TASKBAR STRIP ─────────────────────────────────────────────────────
+    class TaskbarWin extends Win {
+      render(a) {
+        const w = this.bw * 1.2, h = 44;
+        const [r,g,b] = this.accent;
+
+        // frosted dark bar
+        p.fill(20, 20, 26, a * 0.88);
+        p.stroke(80, 80, 100, a * 0.4);
+        p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 4);
+
+        // start button
+        p.fill(r, g, b, a * 0.9);
+        p.noStroke();
+        p.rect(-w/2 + 8, -h/2 + 8, 28, 28, 4);
+        p.fill(255, 255, 255, a * 0.9);
+        p.textSize(14);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('⊞', -w/2 + 22, -h/2 + 22);
+
+        // app icons (centered cluster)
+        const icons = ['◉','⬤','⊟','⊞','◈'];
+        icons.forEach((ic, i) => {
+          const ix = i * 36 - (icons.length - 1) * 18;
+          p.fill(255, 255, 255, a * 0.35);
+          p.noStroke();
+          p.rect(ix - 16, -h/2 + 8, 32, 28, 4);
+          p.fill(255, 255, 255, a * 0.8);
+          p.textSize(14);
+          p.textAlign(p.CENTER, p.CENTER);
+          p.text(ic, ix, -h/2 + 22);
+          // active indicator
+          if (i === 1) {
+            p.fill(r, g, b, a * 0.9);
+            p.noStroke();
+            p.rect(ix - 6, h/2 - 4, 12, 3, 2);
+          }
+        });
+
+        // time (right)
+        p.fill(255, 255, 255, a * 0.75);
+        p.noStroke();
+        p.textFont('system-ui, Segoe UI');
+        p.textSize(9);
+        p.textAlign(p.RIGHT, p.CENTER);
+        p.text('23:47\n2024-12-09', w/2 - 8, 0);
+        p.textFont('system-ui');
+      }
+    }
+
+    // ── DIALOG BOX ────────────────────────────────────────────────────────
+    class DialogWin extends Win {
+      render(a) {
+        const w = 240, h = 140;
+        const [r,g,b] = this.accent;
+        const tbH = this._frame(w, h, '! System Alert', a);
+
+        p.fill(255, 255, 255, a * 0.97);
+        p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, h - tbH, 0, 0, 8, 8);
+
+        // icon
+        p.fill(r, g, b, a * 0.9);
+        p.textSize(28);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('⚠', -w/2 + 36, -h/2 + tbH + 34);
+
+        // text
+        p.fill(20, 20, 20, a * 0.88);
+        p.noStroke();
+        p.textFont('system-ui, Segoe UI');
+        p.textSize(11);
+        p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT, p.TOP);
+        p.text('Access Denied', -w/2 + 60, -h/2 + tbH + 14);
+        p.textStyle(p.NORMAL);
+        p.textSize(9);
+        p.fill(70, 70, 78, a * 0.75);
+        p.text('You do not have permission\nto access this resource.\nContact system administrator.', -w/2 + 60, -h/2 + tbH + 30);
+
+        // buttons
+        p.fill(r, g, b, a * 0.88);
+        p.noStroke();
+        p.rect(w/2 - 74, h/2 - 28, 68, 22, 4);
+        p.fill(255, 255, 255, a * 0.92);
+        p.textSize(9.5);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('OK', w/2 - 40, h/2 - 17);
+
+        p.fill(240, 240, 244, a * 0.88);
+        p.stroke(200, 200, 205, a * 0.5);
+        p.strokeWeight(1);
+        p.rect(-w/2 + 6, h/2 - 28, 64, 22, 4);
+        p.fill(30, 30, 34, a * 0.8);
+        p.noStroke();
+        p.textSize(9.5);
+        p.text('Cancel', -w/2 + 38, h/2 - 17);
+        p.textFont('system-ui');
+      }
+    }
+
+    // ── CALCULATOR ────────────────────────────────────────────────────────
+    class CalculatorWin extends Win {
+      render(a) {
+        const w = 200, h = 280;
+        const tbH = this._frame(w, h, 'Calculator', a, true);
+        p.fill(24, 24, 32, a * 0.97); p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, h - tbH, 0, 0, 8, 8);
+
+        // Display — glitching number
+        const raw = p.floor(p.noise(this.seed, this.phase * 0.15) * 99999999);
+        const disp = this._glitch(String(raw).padStart(8,'0'));
+        p.fill(200, 220, 255, a * 0.94); p.noStroke();
+        p.textFont('Courier New, monospace'); p.textSize(20);
+        p.textAlign(p.RIGHT, p.CENTER);
+        p.text(disp, w/2 - 10, -h/2 + tbH + 28);
+
+        // Buttons 4×5 grid
+        const keys = ['C','±','%','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','⌫','.','='];
+        const bw = (w - 16) / 4, bh = 30;
+        const [r,g,b] = this.accent;
+        keys.forEach((k, i) => {
+          const col = i % 4, row = p.floor(i / 4);
+          const bx = -w/2 + 8 + col * bw, by = -h/2 + tbH + 46 + row * (bh + 3);
+          const isAccent = k === '=' || k === '÷' || k === '×' || k === '−' || k === '+';
+          const isTop = k === 'C' || k === '±' || k === '%';
+          p.fill(isAccent ? [r,g,b,a*0.88] : isTop ? [60,60,72,a*0.9] : [38,38,50,a*0.9]);
+          p.noStroke(); p.rect(bx, by, bw - 3, bh, 4);
+          p.fill(isTop ? [200,200,200] : [240,240,240], a * 0.88);
+          p.textFont('system-ui'); p.textSize(12); p.textAlign(p.CENTER, p.CENTER);
+          p.text(k, bx + (bw-3)/2, by + bh/2);
+        });
+      }
+    }
+
+    // ── ACTION CENTER ─────────────────────────────────────────────────────
+    class ActionCenterWin extends Win {
+      render(a) {
+        const w = 270, h = 220;
+        const [r,g,b] = this.accent;
+        p.drawingContext.shadowColor = `rgba(0,0,0,0.3)`; p.drawingContext.shadowBlur = 18;
+        p.fill(240, 240, 245, a * 0.95); p.stroke(200,200,206,a*0.5); p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 10);
+        p.drawingContext.shadowBlur = 0;
+
+        p.fill(20,20,24,a*0.85); p.noStroke(); p.textFont('Segoe UI, system-ui'); p.textSize(13); p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT,p.CENTER); p.text('Quick Settings', -w/2+14, -h/2+18); p.textStyle(p.NORMAL);
+
+        // Toggle tiles 2×2
+        const tiles = [
+          {icon:'⊞',label:'Wi-Fi',  on:true  },
+          {icon:'◈',label:'BT',     on:true  },
+          {icon:'◉',label:'Focus',  on:false },
+          {icon:'⊙',label:'VPN',    on:false },
+          {icon:'◎',label:'Night',  on:true  },
+          {icon:'⊟',label:'Aeroplane',on:false},
+        ];
+        const tw = (w - 28) / 3, th = 56;
+        tiles.forEach((t, i) => {
+          const col = i % 3, row = p.floor(i / 3);
+          const tx = -w/2 + 14 + col * (tw + 4), ty = -h/2 + 34 + row * (th + 4);
+          p.fill(t.on ? [r,g,b,a*0.18] : [220,220,226,a*0.7]); p.noStroke(); p.rect(tx, ty, tw, th, 6);
+          p.fill(t.on ? [r,g,b,a*0.9] : [100,100,108,a*0.7]);
+          p.textSize(18); p.textAlign(p.CENTER,p.CENTER); p.text(t.icon, tx+tw/2, ty+18);
+          p.fill(30,30,36,a*0.75); p.textSize(7.5); p.text(t.label, tx+tw/2, ty+th-10);
+        });
+
+        // Brightness slider
+        p.fill(210,210,216,a*0.6); p.noStroke(); p.rect(-w/2+14, h/2-30, w-28, 6, 3);
+        p.fill(r,g,b,a*0.88); p.rect(-w/2+14, h/2-30, (w-28)*0.62, 6, 3);
+        p.fill(255,255,255,a); p.circle(-w/2+14+(w-28)*0.62, h/2-27, 14);
+      }
+    }
+
+    // ── WIDGET BOARD ──────────────────────────────────────────────────────
+    class WidgetBoardWin extends Win {
+      render(a) {
+        const w = 260, h = 220;
+        p.drawingContext.shadowColor = `rgba(0,0,0,0.28)`; p.drawingContext.shadowBlur = 16;
+        p.fill(235, 240, 255, a * 0.96); p.stroke(200,205,220,a*0.5); p.strokeWeight(1);
+        p.rect(-w/2, -h/2, w, h, 10);
+        p.drawingContext.shadowBlur = 0;
+
+        // Weather card
+        const [r,g,b] = this.accent;
+        p.fill(r,g,b,a*0.12); p.noStroke(); p.rect(-w/2+8, -h/2+8, w-16, 90, 8);
+        p.fill(20,20,36,a*0.9); p.textFont('Segoe UI,system-ui'); p.textSize(36); p.textAlign(p.LEFT,p.CENTER);
+        p.text('−8°', -w/2+18, -h/2+36);
+        p.fill(60,70,100,a*0.7); p.textSize(9); p.text('Moscow · Overcast', -w/2+18, -h/2+60);
+        p.fill(60,70,100,a*0.5); p.textSize(8); p.text('Feels like −14° · Humidity 91%', -w/2+18, -h/2+74);
+        // glitched temp
+        if (p.noise(this.seed, this.phase*2) > 0.78) {
+          p.fill(r,g,b,a*0.5); p.textSize(11); p.text(this._glitch('⚡SIGNAL_LOST'), -w/2+130, -h/2+36);
+        }
+
+        // Mini news cards
+        const news = [
+          'RKN ограничил ещё 14 VPN',
+          'Протокол связи обновлён',
+          'Доступ к ресурсам закрыт',
+        ];
+        news.forEach((n, i) => {
+          const ny = -h/2 + 106 + i * 34;
+          p.fill(255,255,255,a*0.7); p.noStroke(); p.rect(-w/2+8, ny, w-16, 30, 4);
+          p.fill(r,g,b,a*0.88); p.noStroke(); p.rect(-w/2+8, ny, 4, 30, 2,0,0,2);
+          p.fill(20,20,36,a*0.85); p.textSize(8.5); p.textAlign(p.LEFT,p.CENTER);
+          p.text(this._glitch(n), -w/2+18, ny+15);
+        });
+      }
+    }
+
+    // ── BROKEN APP ────────────────────────────────────────────────────────
+    class BrokenWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+        const tbH = this._frame(w, h, this._glitch('Untitl█d - N█tepad'), a);
+        const [r,g,b] = this.accent;
+
+        p.fill(254, 254, 255, a * 0.96); p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, h - tbH, 0, 0, 8, 8);
+
+        // broken menu bar
+        const menus = ['Фile', 'Edit', 'Format', 'View', 'Help'];
+        menus.forEach((m, i) => {
+          if (i === 1) { p.fill(r,g,b,a*0.2); p.noStroke(); p.rect(-w/2+4+i*44, -h/2+tbH, 44, 18, 2); }
+          p.fill(20,20,20,a*0.75); p.noStroke(); p.textFont('Segoe UI,system-ui'); p.textSize(9);
+          p.textAlign(p.LEFT,p.CENTER);
+          p.text(m, -w/2+8+i*44, -h/2+tbH+9);
+        });
+
+        // scrambled content lines
+        const lines = [
+          'C0RRUPTED_DATA_SEGMENT_0xF4A2',
+          '▓▒░ READING FROM DISK ░▒▓',
+          'NULL REF → 0x0000000',
+          this._glitch('Стек вызовов: kernel32.dll'),
+          '>>> RECOVERING...',
+          this._glitch('файл повреждён [0xC0000034]'),
+        ];
+        lines.forEach((ln, i) => {
+          const brightness = p.noise(i*0.3+this.seed, this.phase*0.9);
+          p.fill(brightness > 0.6 ? [r,g,b,a*0.85] : [20,20,20,a*0.7]);
+          p.textFont('Courier New, monospace'); p.textSize(8.5); p.textAlign(p.LEFT,p.TOP);
+          // horizontal glitch offset on some lines
+          const dx = brightness > 0.82 ? p.floor(p.noise(i,this.phase*4)*14-7) : 0;
+          p.text(ln, -w/2+8+dx, -h/2+tbH+22+i*16);
+        });
+
+        // BSOD stripe covering bottom quarter
+        if (p.noise(this.seed*0.2, this.phase*0.05) > 0.55) {
+          p.fill(0,30,180,a*0.92); p.noStroke();
+          p.rect(-w/2, h/2-50, w, 50, 0,0,8,8);
+          p.fill(255,255,255,a*0.9); p.textFont('Courier New,monospace'); p.textSize(9);
+          p.textAlign(p.CENTER,p.CENTER);
+          p.text(':( CRITICAL_PROCESS_DIED', 0, h/2-25);
+        }
+      }
+    }
+
+    // ── SEARCH PANEL ──────────────────────────────────────────────────────
+    class SearchWin extends Win {
+      render(a) {
+        const w = 300, h = 200;
+        p.drawingContext.shadowColor = `rgba(0,0,0,0.3)`; p.drawingContext.shadowBlur = 20;
+        p.fill(245,245,250,a*0.96); p.stroke(200,200,208,a*0.5); p.strokeWeight(1);
+        p.rect(-w/2,-h/2,w,h,10); p.drawingContext.shadowBlur = 0;
+
+        const [r,g,b] = this.accent;
+        // Search field
+        p.fill(255,255,255,a); p.stroke(r,g,b,a*0.8); p.strokeWeight(1.5);
+        p.rect(-w/2+10,-h/2+10,w-20,28,14);
+        p.fill(80,80,90,a*0.7); p.noStroke(); p.textSize(12); p.textAlign(p.LEFT,p.CENTER);
+        p.text('⌕', -w/2+20,-h/2+24);
+        const query = this._typedGlitch('RKN_bypass_search_results');
+        p.fill(20,20,28,a*0.88); p.textFont('Segoe UI,system-ui'); p.textSize(10);
+        p.text(query, -w/2+36,-h/2+24);
+
+        // Result items
+        const items = [
+          'ркн.gov.ru — Официальный сайт',
+          'Как обойти блокировку (УДАЛЕНО)',
+          'VPN для России 2024 (НЕДОСТУПНО)',
+        ];
+        items.forEach((item, i) => {
+          const iy = -h/2+46+i*34;
+          p.fill(255,255,255,a*0.8); p.noStroke(); p.rect(-w/2+10,iy,w-20,30,5);
+          const blocked = item.includes('УДАЛЕНО') || item.includes('НЕДОСТУПНО') || item.includes('заблокировано');
+          p.fill(blocked?[200,30,30]:[r,g,b], a*0.88); p.textSize(8.5);
+          p.textAlign(p.LEFT,p.CENTER);
+          p.text(blocked?'⊟ '+item:'⊞ '+item, -w/2+16,iy+15);
+        });
+      }
+    }
+
+    // ── BLOCKED PAGE (RKN) ────────────────────────────────────────────────
+    class BlockedPageWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+        const tbH = this._frame(w, h, '⚠  zapret.rkn.gov.ru — доступ', a);
+
+        p.fill(252, 252, 252, a * 0.99); p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, h - tbH, 0, 0, 8, 8);
+
+        // Red alert stripe
+        p.fill(0, 0, 0, a * 0.96); p.noStroke();
+        p.rect(-w/2, -h/2 + tbH, w, 24);
+        p.fill(255, 255, 255, a * 0.9); p.textFont('Segoe UI,system-ui'); p.textSize(9);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('Роскомнадзор · Федеральный закон № 149-ФЗ', 0, -h/2 + tbH + 12);
+
+        // Big ⊗ icon
+        const [r,g,b] = this.accent;
+        p.fill(196, 28, 28, a * 0.85); p.textSize(32);
+        p.textAlign(p.LEFT, p.CENTER);
+        p.text('⊗', -w/2 + 14, -h/2 + tbH + 52);
+
+        // Headline
+        p.fill(18, 18, 22, a * 0.9); p.textSize(11); p.textStyle(p.BOLD);
+        p.textAlign(p.LEFT, p.TOP);
+        p.text('ДОСТУП К РЕСУРСУ ОГРАНИЧЕН', -w/2 + 52, -h/2 + tbH + 30);
+        p.textStyle(p.NORMAL); p.textSize(8); p.fill(70, 70, 78, a * 0.8);
+        p.text('Доступ к запрашиваемому ресурсу\nограничен по решению суда или\nуполномоченного органа.', -w/2 + 52, -h/2 + tbH + 46);
+
+        // Law / decree info
+        p.fill(110, 110, 120, a * 0.7); p.textSize(7.5);
+        p.text('Основание: приказ № ' + (this.seed % 900 + 100) + '-Р', -w/2 + 14, -h/2 + tbH + 88);
+        p.text('Дата: ' + ['14.03.2022','01.11.2023','22.07.2022','05.09.2024'][this.seed%4], -w/2 + 14, -h/2 + tbH + 100);
+
+        // Blocked URL — glitching
+        const urls = ['t.me/opposition','opennet.ru','vpnbook.com'];
+        p.fill(0, 80, 200, a * 0.85); p.textSize(8.5);
+        p.text('⊟ ' + this._glitch(urls[this.seed % urls.length]), -w/2 + 14, -h/2 + tbH + 116);
+
+        // RKN logo block
+        p.fill(196, 28, 28, a * 0.88); p.noStroke();
+        p.rect(w/2 - 68, h/2 - 26, 58, 18, 3);
+        p.fill(255,255,255,a*0.9); p.textSize(8); p.textAlign(p.CENTER,p.CENTER);
+        p.text('РКН · rkn.gov.ru', w/2 - 39, h/2 - 17);
+
+        // Occasional glitch tear
+        if (p.noise(this.seed, this.phase*2.5) > 0.78) {
+          p.fill(r, g, b, a * 0.12); p.noStroke();
+          const ty = -h/2 + tbH + p.floor(p.noise(this.seed*2, this.phase*4) * (h - tbH));
+          p.rect(-w/2, ty, w, p.floor(p.random(2,7)));
+        }
+      }
+    }
+
+    // ── CENSORED BROWSER ──────────────────────────────────────────────────
+    class CensoredBrowserWin extends Win {
+      render(a) {
+        const w = this.bw, h = this.bh;
+        const [r,g,b] = this.accent;
+
+        // Tab strip
+        p.fill(238, 238, 242, a); p.noStroke(); p.rect(-w/2,-h/2,w,28,8,8,0,0);
+
+        // Active tab
+        const tabTitles = ['Последние новости','Антикоррупция','Telegram Web','OpenNet.ru'];
+        p.fill(255,255,255,a*0.92); p.stroke(210,210,215,a*0.5); p.strokeWeight(1);
+        p.rect(-w/2+8,-h/2+4,130,24,5,5,0,0);
+        p.fill(20,20,20,a*0.8); p.noStroke(); p.textFont('Segoe UI,system-ui'); p.textSize(8);
+        p.textAlign(p.LEFT,p.CENTER);
+        p.text(tabTitles[this.seed%tabTitles.length], -w/2+14, -h/2+16);
+
+        // Win11 close
+        p.fill(196,43,28,a*0.88); p.noStroke(); p.rect(w/2-36,-h/2,36,28,0,8,0,0);
+        p.fill(255,255,255,a*0.85); p.textSize(11); p.textAlign(p.CENTER,p.CENTER);
+        p.text('✕', w/2-18, -h/2+14);
+
+        // Toolbar with warning address bar
+        const ty = -h/2+28;
+        p.fill(248,248,251,a); p.stroke(215,215,218,a*0.4); p.strokeWeight(1);
+        p.rect(-w/2, ty, w, 28);
+        p.fill(255,242,242,a); p.stroke(180,60,60,a*0.6); p.strokeWeight(1.5);
+        p.rect(-w/2+52, ty+4, w-100, 20, 10);
+        p.fill(170,30,30,a*0.88); p.noStroke(); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER);
+        const blockedUrls = ['novosti.io','oppoziciya.com','t.me/freespeech','novayagazeta.ru'];
+        p.text('⚠ ' + blockedUrls[this.seed%blockedUrls.length], -w/2+52+(w-100)/2, ty+14);
+
+        // Page body
+        const py = ty+28;
+        p.fill(255,255,255,a*0.97); p.noStroke(); p.rect(-w/2,py,w,h/2-py,0,0,8,8);
+
+        // Headline — partly censored
+        p.textFont('Mercury,Georgia,serif'); p.textSize(12); p.textStyle(p.BOLD);
+        p.fill(18,18,22,a*0.9); p.textAlign(p.LEFT,p.TOP);
+        const hlines = ['■■■■■■■■■■■ запрещена в России','Суд признал ■■■■■■■■ экстремистской'];
+        p.text(hlines[this.seed%hlines.length], -w/2+10, py+6);
+        p.textStyle(p.NORMAL); p.textFont('system-ui');
+
+        // Content bars — some redacted
+        p.randomSeed(this.seed+7);
+        for (let i = 0; i < 5; i++) {
+          const lw = p.random(0.5, 0.95), ly = py+26+i*13;
+          p.fill(200,200,208,a*0.3); p.noStroke(); p.rect(-w/2+10, ly, (w-20)*lw, 7, 2);
+          if (p.random() > 0.42) {
+            const rx = p.random(-w/2+10, -w/2+10+(w-20)*lw*0.65);
+            p.fill(8,8,8,a*0.93); p.rect(rx, ly-1, p.random(28,75), 9);
+          }
+        }
+        p.randomSeed();
+
+        // Bottom — full-width redaction block
+        const bkY = py + 92;
+        if (bkY < h/2-10) {
+          p.fill(10,10,14,a*0.94); p.noStroke(); p.rect(-w/2,bkY,w,h/2-bkY,0,0,8,8);
+          p.fill(r,g,b,a*0.75); p.textSize(9); p.textStyle(p.BOLD); p.textAlign(p.CENTER,p.CENTER);
+          p.text('⊗  МАТЕРИАЛ ЗАБЛОКИРОВАН', 0, (bkY+h/2)/2-8);
+          p.textStyle(p.NORMAL); p.fill(160,160,168,a*0.7); p.textSize(7.5);
+          p.text('РКН · Основание: 149-ФЗ', 0, (bkY+h/2)/2+6);
+          // noise in block
+          if (p.noise(this.seed*0.4,this.phase*3)>0.65) {
+            p.fill(r,g,b,a*0.08);
+            for(let i=0;i<6;i++) p.rect(-w/2+p.random(w),bkY+p.random(h/2-bkY),p.random(10,40),2);
+          }
+        }
+      }
+    }
+
+    // ── SETUP ─────────────────────────────────────────────────────────────
+    // Weighted pool — censorship/label types appear most frequently
+    const TYPES = [
+      GlitchLabelWin, GlitchLabelWin, GlitchLabelWin, GlitchLabelWin,
+      ShtrixLabelWin, ShtrixLabelWin, ShtrixLabelWin,
+      BlockedPageWin, BlockedPageWin, BlockedPageWin,
+      CensoredBrowserWin, CensoredBrowserWin, CensoredBrowserWin,
+      BrowserWin, BrowserWin,
+      BrokenWin, BrokenWin,
+      TerminalWin, TerminalWin,
+      NotifWin, NotifWin,
+      ContextMenuWin, ContextMenuWin,
+      SearchWin, SearchWin,
+      StartMenuWin,
+      FileExplorerWin,
+      DialogWin,
+      TaskbarWin,
+      SettingsWin,
+      WidgetBoardWin,
+      ActionCenterWin,
+    ];
+
+    p.setup = function() {
+      const cnv = p.createCanvas(W, H);
+      cnv.style('position', 'absolute');
+      cnv.style('top', '0');
+      cnv.style('left', '0');
+      cnv.style('background', 'transparent');
+      p.pixelDensity(1);
+      p.textFont('system-ui, Segoe UI, Arial');
+
+      // Spread windows across different depths — start all far enough that
+      // s is small and every element begins near the vanishing point (center)
+      for (let i = 0; i < 40; i++) {
+        const T  = TYPES[i % TYPES.length];
+        const z  = p.map(i, 0, 1000, -1000, 100);
+        wins.push(new T(z));
+      }
+    };
+
+    p.draw = function() {
+      p.clear();
+
+      // Draw video as background directly via canvas context
+      const vid = document.querySelector('video');
+      if (vid && vid.readyState >= 2) {
+        p.drawingContext.drawImage(vid, 0, 0, W, H);
+      }
+
+      // Lerp VP toward mouse (parallax)
+      if (p.mouseX > 0 && p.mouseX < W) {
+        targetVpX = p.map(p.mouseX, 0, W, W/2 - 18, W/2 + 18);
+        targetVpY = p.map(p.mouseY, 0, H, H/2 - 22, H/2 + 22);
+      }
+      vpX = p.lerp(vpX, targetVpX, 0.05);
+      vpY = p.lerp(vpY, targetVpY, 0.05);
+
+      // Speed from mouse Y (top = fast, bottom = slow)
+      if (!paused && p.mouseY > 0) {
+        speed = p.constrain(p.map(p.mouseY, 0, H, 2.0, 0.4), 0.3, 2.8);
+      }
+
+      // Vignette
+      const vg = p.drawingContext.createRadialGradient(W/2, H/2, 0, W/2, H/2, H * 0.75);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,0.52)');
+      p.drawingContext.fillStyle = vg;
+      p.drawingContext.fillRect(0, 0, W, H);
+
+      // Sort back→front
+      wins.sort((a, b) => b.z - a.z);
+
+      for (const w of wins) {
+        w.update();
+        w.draw();
+      }
+
+      // Scanlines
+      p.drawingContext.strokeStyle = 'rgba(0,0,0,0.09)';
+      p.drawingContext.lineWidth = 1;
+      for (let y = 0; y < H; y += 3) {
+        p.drawingContext.beginPath();
+        p.drawingContext.moveTo(0, y);
+        p.drawingContext.lineTo(W, y);
+        p.drawingContext.stroke();
+      }
+
+      // Pause overlay
+      if (paused) {
+        p.fill(0, 0, 0, 140);
+        p.noStroke();
+        p.rect(0, 0, W, H);
+        p.fill(242, 0, 255, 220);
+        p.textFont('SHTRIX-MINI, monospace');
+        p.textSize(28);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.text('// PAUSED //', W/2, H/2);
+        p.textFont('Minica, monospace');
+        p.textSize(11);
+        p.fill(255, 255, 255, 140);
+        p.text('CLICK TO RESUME', W/2, H/2 + 36);
+        p.textFont('system-ui');
+      }
+      p.blendMode(p.DIFFERENCE);
+      p.noStroke();
+      p.fill(255); // Белый цвет в режиме DIFFERENCE полностью инвертирует фон
+      p.rect(0, 0, W, H) // Квадрат 100x100 по центру мыши
+      p.blendMode(p.BLEND); // Возврат в обычный режим
+
+      p.blendMode(p.DIFFERENCE);
+      p.noStroke();
+      p.fill(255); // Белый цвет в режиме DIFFERENCE полностью инвертирует фон
+      p.rect(p.mouseX - 50, p.mouseY - 50, 175, 175); // Квадрат 100x100 по центру мыши
+      p.blendMode(p.BLEND); // Возврат в обычный режим
+    };
+
+    p.mousePressed = function() {
+      paused = !paused;
+    };
+
+    // Touch support
+    p.touchStarted = function() {
+      paused = !paused;
+      return false;
+    };
+
+  }, 'sketch');
+  </script>
+</body>
+</html>

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Fixed Layers X-Ray + Multi-Windows</title>
+    <style>
+        @font-face {
+            font-family: 'CyGrotesk';
+            src: url('cy-grotesk-wide-2.ttf'); /* Убедись, что файл лежит рядом с html */
+        }
+
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #000; overflow: hidden; }
+        #p5-bg-text-canvas { 
+    z-index: 10; /* Выше модели, но ниже окон (50) и овалов (100) */
+    pointer-events: none; 
+}
+        #poster-container {
+            position: relative;
+            width: 56.25vh; 
+            height: 100vh;
+            background: #050505; 
+            overflow: hidden;
+            box-shadow: 0 0 80px rgba(0,0,0,0.8);
+        }
+
+        #poster-container canvas {
+            position: absolute;
+            top: 0; left: 0;
+        }
+
+@font-face { font-family: 'Mercury-130'; src: url('mercury-130.ttf'); }
+@font-face { font-family: 'Mercury-140'; src: url('mercury-140.ttf'); }
+@font-face { font-family: 'Minica'; src: url('minica-1101-1.ttf'); }
+
+#p5-windows-canvas { 
+    z-index: 50; 
+    pointer-events: none; 
+    position: absolute;
+    top: 0; left: 0;
+}
+        #p5-blur-canvas {
+            z-index: 100 !important;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            filter: blur(20px);
+            opacity: 0.9;
+        }
+        
+        #p5-blur-canvas-2 {
+            z-index: 101 !important;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            filter: blur(20px);
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="poster-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/postprocessing/ShaderPass.js"></script>
+
+    <script>
+        let scene, camera, renderer, model, composer;
+        const W = window.innerHeight * 0.5625; 
+        const H = window.innerHeight;         
+        let mouseX = 0, mouseY = 0;
+
+        function initThree() {
+            const container = document.getElementById('poster-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000);
+            camera.position.set(0, 0, 7);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(W, H);
+            renderer.setPixelRatio(1);
+            container.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+            scene.add(new THREE.HemisphereLight(0xff2e9d, 0x1b2eff, 1.2));
+            
+            new THREE.GLTFLoader().load('scallymilano.glb', (gltf) => {
+                model = gltf.scene;
+                model.scale.set(4, 4, 4); 
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center); 
+                scene.add(model);
+            });
+
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(new THREE.RenderPass(scene, camera));
+            
+            const caPass = new THREE.ShaderPass({
+                uniforms: { "tDiffuse": { value: null }, "shift": { value: 0.005 } },
+                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                fragmentShader: `uniform sampler2D tDiffuse; uniform float shift; varying vec2 vUv; void main() { vec4 r = texture2D(tDiffuse, vec2(vUv.x - shift, vUv.y)); vec4 g = texture2D(tDiffuse, vUv); vec4 b = texture2D(tDiffuse, vec2(vUv.x + shift, vUv.y)); gl_FragColor = vec4(r.r, g.g, b.b, 1.0); }`
+            });
+            composer.addPass(caPass);
+
+            document.addEventListener('mousemove', (event) => {
+                mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+                mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            });
+
+            animateThree();
+        }
+
+        function animateThree() {
+            requestAnimationFrame(animateThree);
+            if (model) {
+                let lookTarget = new THREE.Vector3(mouseX * 5, mouseY * 3.5, 5);
+                const m = new THREE.Matrix4();
+                m.lookAt(lookTarget, model.position, model.up);
+                const correctionMatrix = new THREE.Matrix4().makeRotationY(Math.PI / -2);
+                m.multiply(correctionMatrix);
+                let targetRotation = new THREE.Quaternion().setFromRotationMatrix(m);
+                model.quaternion.slerp(targetRotation, 0.15);
+            }
+            if (composer) composer.render();
+        }
+
+        // --- P5: СКАНЛАЙНЫ ---
+        const scanlinesSketch = (p) => {
+            p.setup = () => {
+                let cnv = p.createCanvas(W, H);
+                cnv.id('p5-clear-canvas');
+                cnv.parent('poster-container');
+            };
+            p.draw = () => {
+                p.clear();
+                p.stroke(255, 45); 
+                for (let y = 0; y < p.height; y += 4) { p.line(0, y, p.width, y); }
+            };
+        };
+
+        // --- P5: МНОЖЕСТВЕННЫЕ ОКНА ---
+
+const windowsSketch = (p) => {
+    let wins = [];
+    const lyrics = [
+'Вау, вау, вау, йупи-йо, йупи-йей, ***',
+  'Предъявите паспорт, зубы этой суки чаще видят ***',
+  'Бро торчит на кухне три часа, но не готовит пасту',
+  'Перед тем, как меряться со мной ***, посмотри на мой',
+  'Если хочешь тоже в игру — тебе нужно задротить всё',
+  'А ты настолько броук, будто в твоей стране безработица',
+  'Включи музыку погромче, двигай телом',
+  'Шоты, алкоголь, текила, детка, я куплю это',
+  'Шорты от Vetements, ещё Amiri — я ношу это',
+    ];
+    const fonts = ['Mercury-140', 'tves-mini'];
+
+    p.setup = () => {
+        p.createCanvas(W, H).id('p5-windows-canvas').parent('poster-container');
+        let totalWindows = 7; 
+
+        // НАСТРОЙКА ЧАСТОТЫ ТИПОВ:
+        const weights = {
+            text: 0.5,      // Обычный текст
+            censored: 0.3,  // Зацензуренный текст (НОВОЕ)
+            graph: 0.1,     // Графики
+            status: 0.1     // Плашки статуса
+        };
+
+        for (let i = 0; i < totalWindows; i++) {
+            let side = i % 2; 
+            let px = (side === 0) ? p.random(-100, W * 0.1) : p.random(W * 0.55, W - 100);
+            let py = p.random(-200, H - 50);
+
+            // Логика выбора типа на основе весов
+            let r = p.random(1);
+            let type;
+            if (r < weights.text) {
+                type = 'text';
+            } else if (r < weights.text + weights.censored) {
+                type = 'censored';
+            } else if (r < weights.text + weights.censored + weights.graph) {
+                type = 'graph';
+            } else {
+                type = 'status';
+            }
+
+            // Настройка размеров
+            let w = type === 'graph' ? p.random(150, 180) : p.random(200, 280);
+            let h = type === 'status' ? p.random(60, 90) : p.random(140, 190);
+
+            wins.push({
+                x: px, y: py, w: w, h: h,
+                type: type,
+                depth: p.random(0.15, 0.6),
+                title: "FILE_ERR_" + p.floor(p.random(100, 999)),
+                txt: p.random(lyrics),
+                fontContent: p.random(fonts),
+                val: p.random(10, 100)
+            });
+        }
+    };
+
+    p.draw = () => {
+        p.clear();
+        let moveX = mouseX * 40;
+        let moveY = -mouseY * 40;
+
+        wins.forEach(w => {
+            p.push();
+            p.translate(w.x + moveX * w.depth, w.y + moveY * w.depth);
+            
+            // Основа
+            p.fill(255);
+            p.noStroke();
+            p.rect(0, 0, w.w, w.h, 2);
+            p.stroke(0, 15);
+            p.noFill();
+            p.rect(0, 0, w.w, w.h, 2);
+
+            // Шапка
+            p.noStroke();
+            p.fill(242);
+            p.rect(0, 0, w.w, 24, 2, 2, 0, 0);
+            p.fill(0, 40);
+            p.circle(12, 12, 4); p.circle(22, 12, 4); p.circle(32, 12, 4);
+
+            p.fill(0, 150);
+            p.textAlign(p.RIGHT);
+            p.textSize(8);
+            p.textFont('SHTRIX-MINI');
+            p.text(w.title, w.w - 10, 16);
+
+            // КОНТЕНТ ПО ТИПАМ
+            if (w.type === 'text' || w.type === 'censored') {
+                p.fill(40);
+                p.textFont(w.fontContent);
+                p.textSize(11);
+                p.textAlign(p.LEFT, p.TOP);
+                p.textLeading(16);
+                p.text(w.txt, 15, 40, w.w - 30);
+
+                // Эффект цензуры (черные плашки поверх текста)
+                if (w.type === 'censored') {
+                    p.fill(0);
+                    p.noStroke();
+                    // Рисуем 2-3 случайные плашки в зоне текста
+                    p.randomSeed(w.val); // Чтобы плашки не прыгали каждый кадр
+                    for(let k = 0; k < 3; k++) {
+                        p.rect(p.random(15, w.w/2), p.random(42, w.h - 40), p.random(40, 80), 12);
+                    }
+                }
+            } 
+            else if (w.type === 'graph') {
+                p.stroke(0, 40);
+                for(let j = 0; j < 5; j++) {
+                    let barW = (w.w - 24) * p.noise(j, p.frameCount * 0.01 + w.val);
+                    p.fill(0, 220);
+                    p.rect(12, 40 + (j * 15), barW, 8);
+                }
+            } 
+            else if (w.type === 'status') {
+                p.textAlign(p.CENTER, p.CENTER);
+                p.textFont('SHTRIX-MINI');
+                p.textSize(13);
+                let isError = w.val > 60;
+                p.fill(isError ? [255, 50, 50] : 0);
+                p.text(isError ? "ACCESS DENIED" : "ZAPRET.COM", w.w/2, w.h/2 + 10);
+            }
+
+            // Техническая инфо
+            p.fill(0, 50);
+            p.textFont('TVES-MINI');
+            p.textSize(7);
+            p.textAlign(p.LEFT);
+            if (w.type !== 'status') p.text("STATUS: ENCRYPTED // 0x51", 15, w.h - 10);
+
+            p.pop();
+        });
+    };
+};
+
+
+        // --- P5: ОВАЛЫ (ВЕРХНИЕ СЛОИ) ---
+        const ovalSketch = (p) => {
+            let w_base = 170;
+            let h_base = 280;
+            let t = 0;
+
+            p.setup = () => {
+                let cnv = p.createCanvas(W, H);
+                cnv.id('p5-blur-canvas');
+                cnv.parent('poster-container');
+                p.noStroke();
+            };
+
+            p.draw = () => {
+                p.clear();
+                let x = p.width * 0.4 + Math.sin(t * 0.5) * p.width * 0.25;
+                let y = p.height * 0.6 + Math.cos(t * 0.35) * p.height * 0.5;
+                let w = w_base * (1 + Math.sin(t * 1.1) * 0.2);
+                let h = h_base * (1 + Math.cos(t * 0.9) * 0.2);
+                let ctx = p.drawingContext;
+                ctx.globalCompositeOperation = "difference";
+                let gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, h);
+                gradient.addColorStop(0.0, 'rgb(255,0,0)');
+                gradient.addColorStop(0.35, 'rgb(255,120,0)');
+                gradient.addColorStop(0.65, 'rgb(0,255,0)');
+                gradient.addColorStop(1.0, 'rgb(0,0,0)');
+                ctx.fillStyle = gradient;
+                p.push();
+                p.translate(x, y);
+                p.beginShape();
+                let steps = 80;
+                for (let i = 0; i <= steps; i++) {
+                    let a = (i / steps) * p.TWO_PI;
+                    let distort = 1 + Math.sin(a * 2 + t * 2) * 0.25 + Math.cos(a * 5 + t) * 0.12;
+                    p.vertex(Math.cos(a) * w * distort, Math.sin(a) * h * distort);
+                }
+                p.endShape(p.CLOSE);
+                p.pop();
+                t += 0.01;
+            };
+        };
+
+        const ovalSketch2 = (p) => {
+            let w_base = 175;
+            let h_base = 250;
+            let t = Math.random() * 100;
+
+            p.setup = () => {
+                let cnv = p.createCanvas(W, H);
+                cnv.id('p5-blur-canvas-2');
+                cnv.parent('poster-container');
+                p.noStroke();
+            };
+
+            p.draw = () => {
+                p.clear();
+                let baseY = p.height * 0.75;
+                let amplitude = p.height * 0.15;
+                let y_raw = baseY + Math.cos(t * 0.9 + 3.0) * amplitude + Math.sin(t * 1.5 + 2.5) * 40;
+                let y = p.constrain(y_raw, 50, H - 50);
+                let x = p.width * 0.4 + Math.sin(t * 1.2 + 2.0) * p.width * 0.15 + Math.cos(t * 0.8 + 1.5) * 50;
+                let w = w_base * (1 + Math.sin(t * 1.0 + 1.5) * 0.18);
+                let h = h_base * (1 + Math.cos(t * 0.8 + 0.7) * 0.18);
+                let ctx = p.drawingContext;
+                ctx.globalCompositeOperation = "difference";
+                let gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, h);
+                gradient.addColorStop(0.0, 'rgb(0,255,255)');
+                gradient.addColorStop(0.35, 'rgb(0,120,255)');
+                gradient.addColorStop(0.65, 'rgb(255,0,255)');
+                gradient.addColorStop(1.0, 'rgb(0,0,0)');
+                ctx.fillStyle = gradient;
+                p.push();
+                p.translate(x, y);
+                p.beginShape();
+                let steps = 80;
+                for (let i = 0; i <= steps; i++) {
+                    let a = (i / steps) * p.TWO_PI;
+                    let distort = 1 + Math.sin(a * 2.3 + t * 2.0) * 0.2 + Math.cos(a * 6 + t * 1.3) * 0.1;
+                    p.vertex(Math.cos(a) * w * distort, Math.sin(a) * h * distort);
+                }
+                p.endShape(p.CLOSE);
+                p.pop();
+                t += 0.013;
+            };
+        };
+
+        // --- P5: ФОНОВЫЙ ТЕКСТ (ПОДЛОЖКИ) ---
+        const backgroundTextSketch = (p) => {
+            let bgElements = [];
+            // Твой список фраз
+            const phrases = [
+                'Я ощущаю себя боссом',
+                'Дар красиво говорить был мне с неба послан',
+                'Хейтер видит, что я поднимаюсь — ***',
+                'Проснулся, сразу дал два *** — и я снова сонный',
+                'Если ты мой опп, то советую те носить броник',
+                'Мой язык острый, как будто я пихал его в точилку',
+                'Мы самые старые здесь, как Оззи Осборн',
+                'Я купил бабушке в аптеке таблетки',
+                'У меня за зубами лежит грязь, и я не про кариес',
+                'На телефоне обманываю людей день и ночь',
+                'Дайте кто-нибудь счётчик, не могу посчитать банкноты',
+                'Парень, у тебя пару методов, а у меня методов книга',
+                'Ты не рэпуешь то, чем жил',
+                'У меня bar\'ы как в центрах, я в них утону',
+                'Я сплю на этих скучных челов',
+                'Если бы я был другим, *** бы я поднял тесто'
+            ];
+
+            const fonts = ['Mercury-130', 'Minica', 'CyGrotesk'];
+
+            p.setup = () => {
+                let cnv = p.createCanvas(W, H);
+                cnv.id('p5-bg-text-canvas');
+                cnv.parent('poster-container');
+                
+                // Создаем элементы на основе списка фраз
+                phrases.forEach((phrase) => {
+                    bgElements.push({
+                        x: p.random(-50, W - 100),
+                        y: p.random(0, H),
+                        txt: phrase.toUpperCase(), // В верхнем регистре выглядит более технически
+                        font: 'tves-mini',
+                        size: p.random(9, 13),
+                        opacity: p.random(30, 80),
+                        speed: p.random(0.1, 0.4),
+                        
+                    });
+                });
+            };
+
+            p.draw = () => {
+                p.clear();
+                
+                bgElements.forEach(el => {
+                    p.push();
+                    p.fill(255, el.opacity);
+                    p.noStroke();
+                    p.textFont(el.font);
+                    p.textSize(el.size);
+                    
+                    // Движение вверх
+                    el.y -= el.speed;
+                    if (el.y < -50) el.y = H + 50;
+                    
+                    // Основная фраза
+                    p.text(el.txt, el.x, el.y);
+                    
+                    // Маленький дубликат со смещением для эффекта "глюка" или тени
+                    p.fill(255, el.opacity * 0.3);
+                    p.text(el.txt, el.x + 2, el.y + 1);
+                    
+                    p.pop();
+                });
+
+            };
+        };
+
+        initThree();
+        new p5(backgroundTextSketch); // Добавь эту строку
+        new p5(windowsSketch);  
+        new p5(scanlinesSketch);
+        new p5(ovalSketch);
+        new p5(ovalSketch2);
+
+        
+    </script>
+</body>
+</html>
