@@ -103,19 +103,19 @@ function draw() {
         item.currX = lerp(item.currX, item.origX, 0.12);
         item.currY = lerp(item.currY, item.origY, 0.12);
 
-        // УСЛОВИЕ ДЛЯ ЧИСТОТЫ: Если скорость маленькая — рисуем только 1 слой текста
+        
         if (mSpeed > 2) {
-            // Рисуем цветные слои только в движении
+            
             fill(180, 255, 0); // Салатовый
             text(item.txt, item.currX + random(-tShift, tShift), item.currY + random(-tShift, tShift));
             
             fill(255, 0, 180); // Розовый
             text(item.txt, item.currX + random(-tShift, tShift), item.currY + random(-tShift, tShift));
             
-            fill(mSpeed > 30 && random(10) > 8 ? 255 : 0); // Основной (инвертируемый)
+            fill(mSpeed > 30 && random(10) > 8 ? 255 : 0); //инвертируемый
             text(item.txt, item.currX, item.currY);
         } else {
-            // МЫШЬ СТОИТ: Рисуем один чистый слой без смещения
+            
             fill(0); 
             text(item.txt, item.origX, item.origY);
         }
